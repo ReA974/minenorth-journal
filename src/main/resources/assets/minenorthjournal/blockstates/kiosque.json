@@ -1,0 +1,49 @@
+{
+ "variants": {
+  "facing=north,stock=0": {
+   "model": "minenorthjournal:block/kiosque_0"
+  },
+  "facing=north,stock=1": {
+   "model": "minenorthjournal:block/kiosque_1"
+  },
+  "facing=north,stock=2": {
+   "model": "minenorthjournal:block/kiosque_2"
+  },
+  "facing=east,stock=0": {
+   "model": "minenorthjournal:block/kiosque_0",
+   "y": 90
+  },
+  "facing=east,stock=1": {
+   "model": "minenorthjournal:block/kiosque_1",
+   "y": 90
+  },
+  "facing=east,stock=2": {
+   "model": "minenorthjournal:block/kiosque_2",
+   "y": 90
+  },
+  "facing=south,stock=0": {
+   "model": "minenorthjournal:block/kiosque_0",
+   "y": 180
+  },
+  "facing=south,stock=1": {
+   "model": "minenorthjournal:block/kiosque_1",
+   "y": 180
+  },
+  "facing=south,stock=2": {
+   "model": "minenorthjournal:block/kiosque_2",
+   "y": 180
+  },
+  "facing=west,stock=0": {
+   "model": "minenorthjournal:block/kiosque_0",
+   "y": 270
+  },
+  "facing=west,stock=1": {
+   "model": "minenorthjournal:block/kiosque_1",
+   "y": 270
+  },
+  "facing=west,stock=2": {
+   "model": "minenorthjournal:block/kiosque_2",
+   "y": 270
+  }
+ }
+}

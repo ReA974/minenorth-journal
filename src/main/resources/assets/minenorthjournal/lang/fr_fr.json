@@ -1,3 +1,5 @@
 {
-  "item.minenorthjournal.journal": "Journal"
+  "item.minenorthjournal.journal": "Journal",
+  "block.minenorthjournal.kiosque": "Kiosque à journaux",
+  "item.minenorthjournal.kiosque": "Kiosque à journaux"
 }

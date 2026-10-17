@@ -2,32 +2,48 @@ package fr.minenorth.journal.client;
 
 import fr.minenorth.journal.Edition;
 import fr.minenorth.journal.JournalNet;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** Rédaction : titre du journal et jusqu'à 4 articles (titre + texte). Le serveur revérifie le droit et assainit les textes. */
+/** Rédaction : titre, jusqu'à 4 articles (titre, image, texte) et 3 encarts publicitaires. Le serveur revérifie le droit et assainit tout. */
 public class JournalEditScreen extends Screen {
-    private static final int W = 360, H = 250;
+    private static final int W = 380, H = 290, ART = Edition.MAX_ARTICLES, ADS = Edition.MAX_ADS;
 
-    private final String[] titles = new String[Edition.MAX_ARTICLES], bodies = new String[Edition.MAX_ARTICLES];
+    private final String[] artTitle = new String[ART], artBody = new String[ART], artImg = new String[ART];
+    private final String[] adName = new String[ADS], adText = new String[ADS], adImg = new String[ADS];
+    private final int[] adTheme = new int[ADS];
     private String journalTitle;
-    private int current;
+    /** 0..3 : articles ; 4..6 : encarts publicitaires. */
+    private int mode;
     private int left, top;
-    private EditBox titleBox, articleTitle;
+    private EditBox f1, f2, f3;
     private MultiLineEditBox body;
 
     public JournalEditScreen(Edition e) {
         super(Component.literal("Rédaction"));
         journalTitle = e.title();
-        for (int i = 0; i < Edition.MAX_ARTICLES; i++) {
-            titles[i] = i < e.articles().size() ? e.articles().get(i).title() : "";
-            bodies[i] = i < e.articles().size() ? e.articles().get(i).body() : "";
+        for (int i = 0; i < ART; i++) {
+            boolean has = i < e.articles().size();
+            artTitle[i] = has ? e.articles().get(i).title() : "";
+            artBody[i] = has ? e.articles().get(i).body() : "";
+            artImg[i] = has ? e.articles().get(i).image() : "";
+        }
+        for (int i = 0; i < ADS; i++) {
+            boolean has = i < e.ads().size();
+            adName[i] = has ? e.ads().get(i).name() : "";
+            adText[i] = has ? e.ads().get(i).text() : "";
+            adImg[i] = has ? e.ads().get(i).image() : "";
+            adTheme[i] = has ? e.ads().get(i).theme() : 0;
         }
     }
 
@@ -35,40 +51,74 @@ public class JournalEditScreen extends Screen {
     protected void init() {
         left = (width - W) / 2;
         top = (height - H) / 2;
-        titleBox = new EditBox(font, left + 80, top + 12, W - 100, 16, Component.literal("Titre du journal"));
+        EditBox titleBox = new EditBox(font, left + 80, top + 10, W - 100, 16, Component.literal("Titre du journal"));
         titleBox.setMaxLength(Edition.MAX_TITLE);
         titleBox.setValue(journalTitle);
         titleBox.setResponder(v -> journalTitle = v);
         addRenderableWidget(titleBox);
-        for (int i = 0; i < Edition.MAX_ARTICLES; i++) {
+        for (int i = 0; i < ART + ADS; i++) {
             int idx = i;
-            addRenderableWidget(new FlatButton(left + 10 + i * 62, top + 38, 58, 16, Component.literal("Article " + (i + 1)), idx == current ? 0xFF2E7D32 : 0xFF5A4630, () -> select(idx)));
+            String label = i < ART ? "Art. " + (i + 1) : "Pub " + (i - ART + 1);
+            int color = i == mode ? 0xFF2E7D32 : (i < ART ? 0xFF5A4630 : 0xFF8A5A14);
+            addRenderableWidget(new FlatButton(left + 10 + i * 52, top + 34, 50, 16, Component.literal(label), color, () -> select(idx)));
         }
-        articleTitle = new EditBox(font, left + 10, top + 62, W - 20, 16, Component.literal("Titre de l'article"));
-        articleTitle.setMaxLength(Edition.MAX_ART_TITLE);
-        articleTitle.setValue(titles[current]);
-        articleTitle.setResponder(v -> titles[current] = v);
-        addRenderableWidget(articleTitle);
-        body = new MultiLineEditBox(font, left + 10, top + 84, W - 20, 120, Component.literal("Texte de l'article…"), Component.empty());
+        if (mode < ART) buildArticle(); else buildAd(mode - ART);
+        addRenderableWidget(new FlatButton(left + 10, top + H - 28, 170, 20, Component.literal("Enregistrer l'édition"), 0xFF2E7D32, this::save));
+        addRenderableWidget(new FlatButton(left + W - 180, top + H - 28, 170, 20, Component.literal("Annuler"), this::onClose));
+    }
+
+    private EditBox box(int x, int y, int w, int max, String value, java.util.function.Consumer<String> setter, String name) {
+        EditBox b = new EditBox(font, x, y, w, 16, Component.literal(name));
+        b.setMaxLength(max);
+        b.setValue(value);
+        b.setResponder(setter);
+        addRenderableWidget(b);
+        return b;
+    }
+
+    private void buildArticle() {
+        int i = mode;
+        f1 = box(left + 10, top + 72, W - 20, Edition.MAX_ART_TITLE, artTitle[i], v -> artTitle[i] = v, "Titre de l'article");
+        f2 = box(left + 10, top + 106, W - 160, Edition.MAX_IMG, artImg[i], v -> artImg[i] = v, "Image");
+        addRenderableWidget(new FlatButton(left + W - 140, top + 106, 130, 16, Component.literal("Objet en main"), () -> { artImg[i] = held(); f2.setValue(artImg[i]); }));
+        body = new MultiLineEditBox(font, left + 10, top + 130, W - 20, 120, Component.literal("Texte de l'article…"), Component.empty());
         body.setCharacterLimit(Edition.MAX_BODY);
-        body.setValue(bodies[current]);
-        body.setValueListener(v -> bodies[current] = v);
+        body.setValue(artBody[i]);
+        body.setValueListener(v -> artBody[i] = v);
         addRenderableWidget(body);
-        addRenderableWidget(new FlatButton(left + 10, top + H - 30, 160, 20, Component.literal("Enregistrer l'édition"), 0xFF2E7D32, this::save));
-        addRenderableWidget(new FlatButton(left + W - 170, top + H - 30, 160, 20, Component.literal("Annuler"), this::onClose));
+    }
+
+    private void buildAd(int i) {
+        f1 = box(left + 10, top + 72, W - 20, Edition.MAX_AD_NAME, adName[i], v -> adName[i] = v, "Annonceur");
+        f3 = box(left + 10, top + 106, W - 20, Edition.MAX_AD_TEXT, adText[i], v -> adText[i] = v, "Texte de la publicité");
+        f2 = box(left + 10, top + 140, W - 160, Edition.MAX_IMG, adImg[i], v -> adImg[i] = v, "Image");
+        addRenderableWidget(new FlatButton(left + W - 140, top + 140, 130, 16, Component.literal("Objet en main"), () -> { adImg[i] = held(); f2.setValue(adImg[i]); }));
+        addRenderableWidget(new FlatButton(left + 10, top + 170, 170, 18, Component.literal("Couleur : " + Look.THEME_NAMES[adTheme[i]]), Look.AD_EDGE[adTheme[i]],
+                () -> { adTheme[i] = (adTheme[i] + 1) % Edition.THEMES; rebuildWidgets(); }));
+    }
+
+    /** Identifiant de l'objet tenu dans l'autre main (le journal est dans la main principale). */
+    private static String held() {
+        ItemStack off = Minecraft.getInstance().player == null ? ItemStack.EMPTY : Minecraft.getInstance().player.getItemInHand(InteractionHand.OFF_HAND);
+        var key = off.isEmpty() ? null : ForgeRegistries.ITEMS.getKey(off.getItem());
+        return key == null ? "" : key.toString();
     }
 
     private void select(int i) {
-        current = i;
+        mode = i;
         rebuildWidgets();
     }
 
     private void save() {
-        List<Edition.Article> list = new ArrayList<>();
-        for (int i = 0; i < Edition.MAX_ARTICLES; i++) {
-            if (!titles[i].isBlank() || !bodies[i].isBlank()) list.add(new Edition.Article(titles[i], bodies[i]));
+        List<Edition.Article> arts = new ArrayList<>();
+        for (int i = 0; i < ART; i++) {
+            if (!artTitle[i].isBlank() || !artBody[i].isBlank()) arts.add(new Edition.Article(artTitle[i], artBody[i], artImg[i]));
         }
-        JournalNet.CHANNEL.sendToServer(new JournalNet.SavePacket(new Edition(journalTitle, "", "", list)));
+        List<Edition.Ad> ads = new ArrayList<>();
+        for (int i = 0; i < ADS; i++) {
+            if (!adName[i].isBlank() || !adText[i].isBlank()) ads.add(new Edition.Ad(adName[i], adText[i], adImg[i], adTheme[i]));
+        }
+        JournalNet.CHANNEL.sendToServer(new JournalNet.SavePacket(new Edition(journalTitle, "", "", arts, ads)));
         onClose();
     }
 
@@ -77,8 +127,19 @@ public class JournalEditScreen extends Screen {
         renderBackground(g);
         g.fill(left - 3, top - 3, left + W + 3, top + H + 3, 0xFF3A2C1C);
         g.fill(left, top, left + W, top + H, 0xFFEDE3C8);
-        g.drawString(font, "Journal :", left + 10, top + 16, 0xFF2A2018, false);
-        g.drawString(font, "Titre de l'article", left + 10, top + 55, 0xFF6B5A40, false);
+        int ink = 0xFF2A2018, rule = 0xFF6B5A40;
+        g.drawString(font, "Journal :", left + 10, top + 14, ink, false);
+        if (mode < ART) {
+            g.drawString(font, "Titre de l'article", left + 10, top + 61, rule, false);
+            g.drawString(font, "Image (identifiant d'objet, facultatif)", left + 10, top + 95, rule, false);
+            if (!artImg[mode].isEmpty()) Look.image(g, artImg[mode], left + W - 24, top + 54, 1.5f);
+        } else {
+            int i = mode - ART;
+            g.drawString(font, "Annonceur", left + 10, top + 61, rule, false);
+            g.drawString(font, "Texte de la publicité", left + 10, top + 95, rule, false);
+            g.drawString(font, "Image (identifiant d'objet, facultatif)", left + 10, top + 129, rule, false);
+            Look.ad(g, new Edition.Ad(adName[i].isEmpty() ? "Annonceur" : adName[i], adText[i], adImg[i], adTheme[i]), left + 10, top + 196, W - 20, 40);
+        }
         super.render(g, mx, my, pt);
     }
 

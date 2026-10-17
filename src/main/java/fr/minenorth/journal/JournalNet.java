@@ -62,13 +62,19 @@ public final class JournalNet {
         for (Edition.Article a : in.articles()) {
             if (arts.size() >= Edition.MAX_ARTICLES) break;
             String t = Edition.clean(a.title(), Edition.MAX_ART_TITLE), b = Edition.clean(a.body(), Edition.MAX_BODY);
-            if (!t.isEmpty() || !b.isEmpty()) arts.add(new Edition.Article(t, b));
+            if (!t.isEmpty() || !b.isEmpty()) arts.add(new Edition.Article(t, b, Edition.cleanImage(a.image())));
+        }
+        List<Edition.Ad> ads = new ArrayList<>();
+        for (Edition.Ad a : in.ads()) {
+            if (ads.size() >= Edition.MAX_ADS) break;
+            String n = Edition.clean(a.name(), Edition.MAX_AD_NAME), t = Edition.clean(a.text(), Edition.MAX_AD_TEXT);
+            if (!n.isEmpty() || !t.isEmpty()) ads.add(new Edition.Ad(n, t, Edition.cleanImage(a.image()), Math.floorMod(a.theme(), Edition.THEMES)));
         }
         String title = Edition.clean(in.title(), Edition.MAX_TITLE);
         if (title.isEmpty() && arts.isEmpty()) { p.displayClientMessage(Component.literal("§cÉcrivez au moins un titre ou un article."), true); return; }
         String company = JournalConfig.company().trim();
-        String author = Edition.clean(company.isEmpty() ? p.getGameProfile().getName() : company, Edition.MAX_AUTHOR);
-        new Edition(title, new SimpleDateFormat("dd/MM/yyyy").format(new Date()), author, arts).write(st);
+        String author = "Par " + Compat.rpName(p) + (company.isEmpty() ? "" : " — " + company);
+        new Edition(title, new SimpleDateFormat("dd/MM/yyyy").format(new Date()), Edition.clean(author, Edition.MAX_AUTHOR), arts, ads).write(st);
         p.getInventory().setChanged();
         p.displayClientMessage(Component.literal("§aÉdition enregistrée sur " + st.getCount() + " exemplaire(s)."), true);
     }
