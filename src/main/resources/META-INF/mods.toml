@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved - MineNorthRP"
+
+[[mods]]
+modId="minenorthjournal"
+version="1.0.0"
+displayName="MineNorth Journal"
+authors="MineNorth RP"
+description='''Journal papier pour la presse du serveur : les journalistes (membres d'une entreprise configurable) rédigent des éditions, les joueurs les lisent.'''
+
+[[dependencies.minenorthjournal]]
+modId="forge"
+mandatory=true
+versionRange="[47,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.minenorthjournal]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="BOTH"
