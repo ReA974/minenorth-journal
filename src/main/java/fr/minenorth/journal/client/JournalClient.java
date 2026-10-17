@@ -7,7 +7,7 @@ import net.minecraft.client.Minecraft;
 public final class JournalClient {
     private JournalClient() {}
 
-    public static void open(boolean edit, Edition e) {
-        Minecraft.getInstance().setScreen(edit ? new JournalEditScreen(e) : new JournalReadScreen(e));
+    public static void open(boolean edit, Edition e, java.util.List<String> photos) {
+        Minecraft.getInstance().setScreen(edit ? new JournalEditScreen(e, photos) : new JournalReadScreen(e));
     }
 }

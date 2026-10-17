@@ -72,8 +72,7 @@ public class JournalReadScreen extends Screen {
             g.fill(left + 20, top + 25, left + W - 20, top + 26, RULE);
             int y = top + 32;
             if (!a.image().isEmpty()) {
-                Look.image(g, a.image(), cx - 24, y, 3f);
-                y += 52;
+                y += Look.picture(g, a.image(), left + 20, y, W - 40, 64) + 6;
             }
             List<FormattedCharSequence> lines = font.split(Component.literal(a.body()), W - 40);
             for (FormattedCharSequence l : lines) {

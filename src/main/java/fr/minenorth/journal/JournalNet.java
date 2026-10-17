@@ -30,17 +30,55 @@ public final class JournalNet {
     public static void register() {
         CHANNEL.registerMessage(0, OpenPacket.class, OpenPacket::encode, OpenPacket::decode, OpenPacket::handle);
         CHANNEL.registerMessage(1, SavePacket.class, SavePacket::encode, SavePacket::decode, SavePacket::handle);
+        CHANNEL.registerMessage(2, ImageRequestPacket.class, ImageRequestPacket::encode, ImageRequestPacket::decode, ImageRequestPacket::handle);
+        CHANNEL.registerMessage(3, ImageDataPacket.class, ImageDataPacket::encode, ImageDataPacket::decode, ImageDataPacket::handle);
     }
 
     public static void open(ServerPlayer p, boolean edit, Edition e) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new OpenPacket(edit, e));
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new OpenPacket(edit, e, edit ? ImageStore.names() : List.of()));
     }
 
-    public record OpenPacket(boolean edit, Edition edition) {
-        static void encode(OpenPacket p, FriendlyByteBuf b) { b.writeBoolean(p.edit); p.edition.encode(b); }
-        static OpenPacket decode(FriendlyByteBuf b) { return new OpenPacket(b.readBoolean(), Edition.decode(b)); }
+    public record OpenPacket(boolean edit, Edition edition, List<String> photos) {
+        static void encode(OpenPacket p, FriendlyByteBuf b) {
+            b.writeBoolean(p.edit); p.edition.encode(b);
+            b.writeVarInt(p.photos.size());
+            for (String n : p.photos) b.writeUtf(n, 40);
+        }
+        static OpenPacket decode(FriendlyByteBuf b) {
+            boolean edit = b.readBoolean();
+            Edition e = Edition.decode(b);
+            int n = Math.min(b.readVarInt(), 200);
+            List<String> photos = new ArrayList<>();
+            for (int i = 0; i < n; i++) photos.add(b.readUtf(40));
+            return new OpenPacket(edit, e, photos);
+        }
         static void handle(OpenPacket p, Supplier<NetworkEvent.Context> c) {
-            c.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> fr.minenorth.journal.client.JournalClient.open(p.edit, p.edition)));
+            c.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> fr.minenorth.journal.client.JournalClient.open(p.edit, p.edition, p.photos)));
+            c.get().setPacketHandled(true);
+        }
+    }
+
+    /** Client -> serveur : demande le fichier d'une photo (nom assaini et limité aux photos du dossier). */
+    public record ImageRequestPacket(String name) {
+        static void encode(ImageRequestPacket p, FriendlyByteBuf b) { b.writeUtf(p.name, 40); }
+        static ImageRequestPacket decode(FriendlyByteBuf b) { return new ImageRequestPacket(b.readUtf(40)); }
+        static void handle(ImageRequestPacket p, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> {
+                ServerPlayer sp = c.get().getSender();
+                if (sp == null) return;
+                byte[] data = ImageStore.load(p.name);
+                if (data != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), new ImageDataPacket(ImageStore.cleanName(p.name), data));
+            });
+            c.get().setPacketHandled(true);
+        }
+    }
+
+    /** Serveur -> client : contenu PNG d'une photo. */
+    public record ImageDataPacket(String name, byte[] data) {
+        static void encode(ImageDataPacket p, FriendlyByteBuf b) { b.writeUtf(p.name, 40); b.writeByteArray(p.data); }
+        static ImageDataPacket decode(FriendlyByteBuf b) { return new ImageDataPacket(b.readUtf(40), b.readByteArray((int) ImageStore.MAX_BYTES)); }
+        static void handle(ImageDataPacket p, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> fr.minenorth.journal.client.PhotoCache.receive(p.name, p.data)));
             c.get().setPacketHandled(true);
         }
     }

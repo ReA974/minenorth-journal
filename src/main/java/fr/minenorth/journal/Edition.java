@@ -35,8 +35,13 @@ public record Edition(String title, String date, String author, List<Article> ar
     /** Identifiant d'objet valide et existant, sinon chaîne vide. */
     public static String cleanImage(String s) {
         if (s == null) return "";
-        ResourceLocation id = ResourceLocation.tryParse(s.trim().toLowerCase());
-        return id != null && ForgeRegistries.ITEMS.containsKey(id) && id.getPath() != "air" ? id.toString() : "";
+        String t = s.trim().toLowerCase();
+        if (t.startsWith(ImageStore.PREFIX)) {
+            String n = ImageStore.cleanName(t);
+            return !n.isEmpty() && ImageStore.exists(n) ? ImageStore.PREFIX + n : "";
+        }
+        ResourceLocation id = ResourceLocation.tryParse(t);
+        return id != null && ForgeRegistries.ITEMS.containsKey(id) && !"air".equals(id.getPath()) ? id.toString() : "";
     }
 
     public static Edition read(ItemStack st) {

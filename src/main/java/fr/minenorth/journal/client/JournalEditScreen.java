@@ -29,8 +29,11 @@ public class JournalEditScreen extends Screen {
     private EditBox f1, f2, f3;
     private MultiLineEditBox body;
 
-    public JournalEditScreen(Edition e) {
+    private final List<String> photos;
+
+    public JournalEditScreen(Edition e, List<String> photos) {
         super(Component.literal("Rédaction"));
+        this.photos = photos;
         journalTitle = e.title();
         for (int i = 0; i < ART; i++) {
             boolean has = i < e.articles().size();
@@ -79,8 +82,9 @@ public class JournalEditScreen extends Screen {
     private void buildArticle() {
         int i = mode;
         f1 = box(left + 10, top + 72, W - 20, Edition.MAX_ART_TITLE, artTitle[i], v -> artTitle[i] = v, "Titre de l'article");
-        f2 = box(left + 10, top + 106, W - 160, Edition.MAX_IMG, artImg[i], v -> artImg[i] = v, "Image");
-        addRenderableWidget(new FlatButton(left + W - 140, top + 106, 130, 16, Component.literal("Objet en main"), () -> { artImg[i] = held(); f2.setValue(artImg[i]); }));
+        f2 = box(left + 10, top + 106, W - 215, Edition.MAX_IMG, artImg[i], v -> artImg[i] = v, "Image");
+        addRenderableWidget(new FlatButton(left + W - 195, top + 106, 90, 16, Component.literal("Objet en main"), () -> { artImg[i] = held(); f2.setValue(artImg[i]); }));
+        addRenderableWidget(new FlatButton(left + W - 100, top + 106, 90, 16, Component.literal("Photo suivante"), () -> { artImg[i] = nextPhoto(artImg[i]); f2.setValue(artImg[i]); }));
         body = new MultiLineEditBox(font, left + 10, top + 130, W - 20, 120, Component.literal("Texte de l'article…"), Component.empty());
         body.setCharacterLimit(Edition.MAX_BODY);
         body.setValue(artBody[i]);
@@ -91,10 +95,18 @@ public class JournalEditScreen extends Screen {
     private void buildAd(int i) {
         f1 = box(left + 10, top + 72, W - 20, Edition.MAX_AD_NAME, adName[i], v -> adName[i] = v, "Annonceur");
         f3 = box(left + 10, top + 106, W - 20, Edition.MAX_AD_TEXT, adText[i], v -> adText[i] = v, "Texte de la publicité");
-        f2 = box(left + 10, top + 140, W - 160, Edition.MAX_IMG, adImg[i], v -> adImg[i] = v, "Image");
-        addRenderableWidget(new FlatButton(left + W - 140, top + 140, 130, 16, Component.literal("Objet en main"), () -> { adImg[i] = held(); f2.setValue(adImg[i]); }));
+        f2 = box(left + 10, top + 140, W - 215, Edition.MAX_IMG, adImg[i], v -> adImg[i] = v, "Image");
+        addRenderableWidget(new FlatButton(left + W - 195, top + 140, 90, 16, Component.literal("Objet en main"), () -> { adImg[i] = held(); f2.setValue(adImg[i]); }));
+        addRenderableWidget(new FlatButton(left + W - 100, top + 140, 90, 16, Component.literal("Photo suivante"), () -> { adImg[i] = nextPhoto(adImg[i]); f2.setValue(adImg[i]); }));
         addRenderableWidget(new FlatButton(left + 10, top + 170, 170, 18, Component.literal("Couleur : " + Look.THEME_NAMES[adTheme[i]]), Look.AD_EDGE[adTheme[i]],
                 () -> { adTheme[i] = (adTheme[i] + 1) % Edition.THEMES; rebuildWidgets(); }));
+    }
+
+    /** Photo suivante dans la liste du serveur (puis retour à « aucune ») ; vide si le serveur n'a aucune photo. */
+    private String nextPhoto(String current) {
+        if (photos.isEmpty()) return "";
+        int i = current.startsWith("photo:") ? photos.indexOf(current.substring(6)) : -1;
+        return i + 1 >= photos.size() ? "" : "photo:" + photos.get(i + 1);
     }
 
     /** Identifiant de l'objet tenu dans l'autre main (le journal est dans la main principale). */
@@ -131,8 +143,8 @@ public class JournalEditScreen extends Screen {
         g.drawString(font, "Journal :", left + 10, top + 14, ink, false);
         if (mode < ART) {
             g.drawString(font, "Titre de l'article", left + 10, top + 61, rule, false);
-            g.drawString(font, "Image (identifiant d'objet, facultatif)", left + 10, top + 95, rule, false);
-            if (!artImg[mode].isEmpty()) Look.image(g, artImg[mode], left + W - 24, top + 54, 1.5f);
+            g.drawString(font, photos.isEmpty() ? "Image (identifiant d'objet, facultatif ; aucune photo sur le serveur)" : "Image (objet ou photo du serveur, facultatif)", left + 10, top + 95, rule, false);
+            if (!artImg[mode].isEmpty()) Look.picture(g, artImg[mode], left + W - 60, top + 52, 48, 40);
         } else {
             int i = mode - ART;
             g.drawString(font, "Annonceur", left + 10, top + 61, rule, false);

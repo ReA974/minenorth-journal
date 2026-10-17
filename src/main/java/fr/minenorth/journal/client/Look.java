@@ -28,6 +28,26 @@ final class Look {
         return it == null ? ItemStack.EMPTY : new ItemStack(it);
     }
 
+    /** Image dans une boîte bw x bh (centrée) : photo du serveur ou icône d'objet agrandie. Renvoie la hauteur occupée. */
+    static int picture(GuiGraphics g, String id, int x, int y, int bw, int bh) {
+        if (id == null || id.isEmpty()) return 0;
+        if (id.startsWith("photo:")) {
+            PhotoCache.Photo p = PhotoCache.get(id.substring(6));
+            if (p == null) {
+                g.fill(x, y, x + bw, y + bh, 0xFF8A826C);
+                g.drawCenteredString(Minecraft.getInstance().font, "…", x + bw / 2, y + bh / 2 - 4, 0xFFFFFFFF);
+                return bh;
+            }
+            float k = Math.min((float) bw / p.w(), (float) bh / p.h());
+            int dw = Math.max(1, Math.round(p.w() * k)), dh = Math.max(1, Math.round(p.h() * k));
+            g.blit(p.tex(), x + (bw - dw) / 2, y + (bh - dh) / 2, dw, dh, 0f, 0f, p.w(), p.h(), p.w(), p.h());
+            return bh;
+        }
+        float s = Math.min(bw, bh) / 16f;
+        image(g, id, x + (int) ((bw - 16 * s) / 2), y + (int) ((bh - 16 * s) / 2), s);
+        return bh;
+    }
+
     /** Image d'objet agrandie (x échelle), coin haut gauche en x, y. */
     static void image(GuiGraphics g, String id, int x, int y, float scale) {
         ItemStack st = stack(id);
@@ -45,7 +65,7 @@ final class Look {
         g.fill(x, y, x + w, y + h, AD_EDGE[a.theme()]);
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, AD_BG[a.theme()]);
         int tx = x + 6;
-        if (!a.image().isEmpty()) { image(g, a.image(), x + 5, y + (h - 24) / 2, 1.5f); tx = x + 34; }
+        if (!a.image().isEmpty()) { picture(g, a.image(), x + 4, y + 4, h - 8, h - 8); tx = x + h; }
         g.drawString(f, Component.literal("PUB · " + a.name()).withStyle(net.minecraft.ChatFormatting.BOLD), tx, y + 4, AD_EDGE[a.theme()], false);
         List<FormattedCharSequence> lines = f.split(Component.literal(a.text()), x + w - 6 - tx);
         int ly = y + 15;
