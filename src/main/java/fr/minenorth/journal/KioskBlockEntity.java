@@ -44,6 +44,12 @@ public class KioskBlockEntity extends BlockEntity {
         return moved;
     }
 
+    /** Le journal que prendrait le prochain client (sans le retirer), ou vide. */
+    public ItemStack peek() {
+        for (ItemStack s : items) if (!s.isEmpty()) return s;
+        return ItemStack.EMPTY;
+    }
+
     /** Retire un journal (copie de l'édition du premier tas non vide), ou vide. */
     public ItemStack takeOne() {
         for (int i = 0; i < SLOTS; i++) {

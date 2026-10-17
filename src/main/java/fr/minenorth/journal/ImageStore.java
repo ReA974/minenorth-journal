@@ -52,6 +52,26 @@ public final class ImageStore {
         return out;
     }
 
+    /** Nombre de photos dont le nom commence par ce préfixe (« pseudo_ »). */
+    public static int countWithPrefix(String prefix) {
+        int n = 0;
+        for (String s : names()) if (s.startsWith(prefix)) n++;
+        return n;
+    }
+
+    /** Enregistre un PNG déjà vérifié sous un nom déjà assaini, sans écraser un fichier existant. */
+    public static boolean save(String name, byte[] png) {
+        String n = cleanName(name);
+        if (n.isEmpty() || png.length > MAX_BYTES) return false;
+        try {
+            Files.createDirectories(dir());
+            Files.write(dir().resolve(n + ".png"), png, java.nio.file.StandardOpenOption.CREATE_NEW);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     public static boolean exists(String name) { return !cleanName(name).isEmpty() && names().contains(cleanName(name)); }
 
     @Nullable

@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 public final class JournalNet {
     private JournalNet() {}
 
-    private static final String PROTOCOL = "1";
+    private static final String PROTOCOL = "2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(MineNorthJournal.MOD_ID, "network"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
 
@@ -32,6 +32,37 @@ public final class JournalNet {
         CHANNEL.registerMessage(1, SavePacket.class, SavePacket::encode, SavePacket::decode, SavePacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(2, ImageRequestPacket.class, ImageRequestPacket::encode, ImageRequestPacket::decode, ImageRequestPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(3, ImageDataPacket.class, ImageDataPacket::encode, ImageDataPacket::decode, ImageDataPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(4, UploadChunkPacket.class, UploadChunkPacket::encode, UploadChunkPacket::decode, UploadChunkPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(5, PhotoListPacket.class, PhotoListPacket::encode, PhotoListPacket::decode, PhotoListPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+    }
+
+    /** Client -> serveur : un morceau (30 Ko au plus) d'une image à importer ; tout est revérifié par {@link PhotoUpload}. */
+    public record UploadChunkPacket(String name, int index, int total, byte[] data) {
+        static void encode(UploadChunkPacket p, FriendlyByteBuf b) { b.writeUtf(p.name, 64); b.writeVarInt(p.index); b.writeVarInt(p.total); b.writeByteArray(p.data); }
+        static UploadChunkPacket decode(FriendlyByteBuf b) { return new UploadChunkPacket(b.readUtf(64), b.readVarInt(), b.readVarInt(), b.readByteArray(PhotoUpload.CHUNK)); }
+        static void handle(UploadChunkPacket p, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> { ServerPlayer sp = c.get().getSender(); if (sp != null) PhotoUpload.chunk(sp, p.name, p.index, p.total, p.data); });
+            c.get().setPacketHandled(true);
+        }
+    }
+
+    /** Serveur -> client : liste à jour des photos (après un import) et nom de la photo qui vient d'être ajoutée. */
+    public record PhotoListPacket(List<String> photos, String added) {
+        static void encode(PhotoListPacket p, FriendlyByteBuf b) {
+            b.writeVarInt(p.photos.size());
+            for (String n : p.photos) b.writeUtf(n, 40);
+            b.writeUtf(p.added, 40);
+        }
+        static PhotoListPacket decode(FriendlyByteBuf b) {
+            int n = Math.min(b.readVarInt(), 500);
+            List<String> l = new ArrayList<>();
+            for (int i = 0; i < n; i++) l.add(b.readUtf(40));
+            return new PhotoListPacket(l, b.readUtf(40));
+        }
+        static void handle(PhotoListPacket p, Supplier<NetworkEvent.Context> c) {
+            c.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> fr.minenorth.journal.client.JournalClient.photosUpdated(p.photos, p.added)));
+            c.get().setPacketHandled(true);
+        }
     }
 
     public static void open(ServerPlayer p, boolean edit, Edition e) {
@@ -123,6 +154,13 @@ public final class JournalNet {
         String company = JournalConfig.company().trim();
         String author = "Par " + Compat.rpName(p) + (company.isEmpty() ? "" : " — " + company);
         new Edition(title, new SimpleDateFormat("dd/MM/yyyy").format(new Date()), Edition.clean(author, Edition.MAX_AUTHOR), arts, ads).write(st);
+        // Entreprise qui touchera les ventes au kiosque : posée par le serveur (jamais par le client), seulement si l'auteur est de l'entreprise de presse.
+        int co = Compat.pressCompanyOf(p);
+        if (co != 0 && st.getTag() != null) {
+            var tag = st.getTag().getCompound("Edition");
+            tag.putInt("co", co);
+            tag.putString("cn", Compat.companyName(p.server, co));
+        }
         p.getInventory().setChanged();
         p.displayClientMessage(Component.literal("§aÉdition enregistrée sur " + st.getCount() + " exemplaire(s)."), true);
     }

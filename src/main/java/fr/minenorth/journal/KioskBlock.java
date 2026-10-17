@@ -101,7 +101,17 @@ public class KioskBlock extends BaseEntityBlock {
         }
         if (be.total() == 0) { p.displayClientMessage(Component.literal("§7Le kiosque est vide."), true); return InteractionResult.SUCCESS; }
         int price = JournalConfig.priceCents();
-        if (!Compat.charge(p, price, "journal:kiosque")) return InteractionResult.SUCCESS;
+        if (price > 0) {
+            ItemStack next = be.peek();
+            int company = Compat.pressCompanyOf(p.server, next);
+            // Journal rédigé par un membre de l'entreprise de presse : le prix va sur le compte de l'entreprise ; sinon au trésor.
+            Boolean paid = company == 0 ? null : Compat.payCompany(p, company, price, "Journal : " + Edition.read(next).title());
+            if (paid == null) {
+                if (!Compat.charge(p, price, "journal:kiosque")) return InteractionResult.SUCCESS;
+            } else if (!paid) {
+                return InteractionResult.SUCCESS;
+            }
+        }
         ItemStack one = be.takeOne();
         p.getInventory().placeItemBackInInventory(one);
         refresh(level, pos, state, be);
