@@ -28,10 +28,10 @@ public final class JournalNet {
             new ResourceLocation(MineNorthJournal.MOD_ID, "network"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
 
     public static void register() {
-        CHANNEL.registerMessage(0, OpenPacket.class, OpenPacket::encode, OpenPacket::decode, OpenPacket::handle);
-        CHANNEL.registerMessage(1, SavePacket.class, SavePacket::encode, SavePacket::decode, SavePacket::handle);
-        CHANNEL.registerMessage(2, ImageRequestPacket.class, ImageRequestPacket::encode, ImageRequestPacket::decode, ImageRequestPacket::handle);
-        CHANNEL.registerMessage(3, ImageDataPacket.class, ImageDataPacket::encode, ImageDataPacket::decode, ImageDataPacket::handle);
+        CHANNEL.registerMessage(0, OpenPacket.class, OpenPacket::encode, OpenPacket::decode, OpenPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(1, SavePacket.class, SavePacket::encode, SavePacket::decode, SavePacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(2, ImageRequestPacket.class, ImageRequestPacket::encode, ImageRequestPacket::decode, ImageRequestPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(3, ImageDataPacket.class, ImageDataPacket::encode, ImageDataPacket::decode, ImageDataPacket::handle, java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
     }
 
     public static void open(ServerPlayer p, boolean edit, Edition e) {
@@ -65,12 +65,22 @@ public final class JournalNet {
         static void handle(ImageRequestPacket p, Supplier<NetworkEvent.Context> c) {
             c.get().enqueueWork(() -> {
                 ServerPlayer sp = c.get().getSender();
-                if (sp == null) return;
+                if (sp == null || !allowImageRequest(sp)) return;
                 byte[] data = ImageStore.load(p.name);
                 if (data != null) CHANNEL.send(PacketDistributor.PLAYER.with(() -> sp), new ImageDataPacket(ImageStore.cleanName(p.name), data));
             });
             c.get().setPacketHandled(true);
         }
+    }
+
+    /** Fenêtre glissante de demandes de photos par joueur : 40 demandes / 10 s (un journal affiche 7 images au plus). WeakHashMap : rien à nettoyer. */
+    private static final java.util.Map<ServerPlayer, long[]> IMAGE_RATE = new java.util.WeakHashMap<>();
+
+    private static boolean allowImageRequest(ServerPlayer sp) {
+        long now = sp.server.getTickCount();
+        long[] w = IMAGE_RATE.computeIfAbsent(sp, k -> new long[]{now, 0});
+        if (now - w[0] > 200) { w[0] = now; w[1] = 0; }
+        return ++w[1] <= 40;
     }
 
     /** Serveur -> client : contenu PNG d'une photo. */

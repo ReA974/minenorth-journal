@@ -52,15 +52,15 @@ public record Edition(String title, String date, String author, List<Article> ar
         ListTag l = t.getList("articles", Tag.TAG_COMPOUND);
         for (int i = 0; i < l.size() && i < MAX_ARTICLES; i++) {
             CompoundTag c = l.getCompound(i);
-            list.add(new Article(c.getString("t"), c.getString("b"), c.getString("i")));
+            list.add(new Article(clean(c.getString("t"), MAX_ART_TITLE), clean(c.getString("b"), MAX_BODY), clean(c.getString("i"), MAX_IMG)));
         }
         List<Ad> ads = new ArrayList<>();
         ListTag a = t.getList("ads", Tag.TAG_COMPOUND);
         for (int i = 0; i < a.size() && i < MAX_ADS; i++) {
             CompoundTag c = a.getCompound(i);
-            ads.add(new Ad(c.getString("n"), c.getString("t"), c.getString("i"), Math.floorMod(c.getInt("c"), THEMES)));
+            ads.add(new Ad(clean(c.getString("n"), MAX_AD_NAME), clean(c.getString("t"), MAX_AD_TEXT), clean(c.getString("i"), MAX_IMG), Math.floorMod(c.getInt("c"), THEMES)));
         }
-        return new Edition(t.getString("title"), t.getString("date"), t.getString("author"), list, ads);
+        return new Edition(clean(t.getString("title"), MAX_TITLE), clean(t.getString("date"), 32), clean(t.getString("author"), MAX_AUTHOR), list, ads);
     }
 
     public void write(ItemStack st) {
